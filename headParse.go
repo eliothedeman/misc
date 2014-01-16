@@ -82,9 +82,12 @@ func main() {
 		seg, done = chomp(scanner, seg, "Reflections measured after indexing")
 		fmt.Println(seg.index)
 		i++
-		for x := 0; x < len(seg.lines); x++ {
-			fmt.Println(parse(seg.lines[x])["h"])
+		if seg.index > 1 {
+			for x := 0; x < len(seg.lines); x++ {
+				fmt.Println(parse(seg.lines[x])["sigmaI"])
+			}
 		}
+
 	}
 
 }
