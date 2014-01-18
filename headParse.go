@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"math"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,18 +25,22 @@ type segment struct {
 	lines []string
 	flags,
 	tags []int
-	data [][]float64
-	I,
-	sigmaI,
-	iOverSigmaI float64
+	data       []float64
+	returnChan chan segment
 }
 
-func (s segment) stdDev() float64 {
+func (s segment) stdDev() (float64, float64) {
 	total := 0.0
+	std := 0.0
 	for i := 0; i < len(s.data); i++ {
-		total += s.data[i][3]
+		total += s.data[i]
 	}
-	return total / float64(len(s.data))
+	avg := total / float64(len(s.data))
+
+	for i := 0; i < len(s.data); i++ {
+		std += math.Abs(s.data[i] - avg)
+	}
+	return std / float64(len(s.data)), avg
 }
 
 // take in a scanner, and return a segment of the text file you are looking for
@@ -58,31 +64,45 @@ func chomp(scanner *bufio.Reader, lookFor string) ([]string, bool) {
 
 	return lines, false
 }
+func (s segment) sanatize() {
+	stdDev, avg := s.stdDev()
+	x := 0
+	offset := 1
+	for i := 0; i < len(s.data); i++ {
+		if (s.data[i] - avg) > 3*stdDev {
+			s.flags = append(s.flags, i)
+			x++
+		}
+	}
+	for i := 0; i < len(s.flags); i++ {
+		fmt.Println(offset)
+		s.lines = append(s.lines[:s.tags[s.flags[i]]-offset], s.lines[s.tags[s.flags[i]]-offset+1:]...)
+		offset++
+	}
+}
 
 // parse out
-func parse(seg segment) [][]float64 {
-	seg.data = make([][]float64, len(seg.lines))
+func (seg segment) parse() ([]float64, []int) {
+	seg.data = make([]float64, len(seg.lines))
 	xBound := len(seg.lines)
 	var tags []int
 	for x := 0; x < xBound; x++ {
-
+		r := regexp.MustCompile(`\W*\d+\W*\d*\s+\W*\d+\W*\d*\s+\W*\d+\W*\d*\s+(\W*\d+\W*\d*)\s+\W\s+\d+\W*\d*\s+\d\s+\d+\W*\d*\s+\d+\W*\d*`)
 		line := seg.lines[x]
-		if strings.Contains(line, " - ") {
+		if r.MatchString(line) {
 			tags = append(tags, x)
-			seg.data[x] = make([]float64, 5)
-			b := strings.Split(line, " ")
-			for y := 0; y < 5; y++ {
 
-				hold, err := strconv.ParseFloat(b[y], 64)
-				seg.data[x][y] = hold
-				if err != nil {
-					fmt.Println(err)
-				}
+			hold, err := strconv.ParseFloat(string(r.FindSubmatch([]byte(line))[1]), 64)
+			seg.data[x] = hold
+			if err != nil {
+				fmt.Println(err)
 			}
+
 		}
 
 	}
-	return seg.data
+	return seg.data, tags
+
 }
 
 // type listener creates an experiment, and reconsititues the santatized data
@@ -96,12 +116,16 @@ func (l listener) rebuild() {
 	if err != nil {
 		fmt.Println("could not rename file")
 	}
-	file, err := os.Open(l.fileLocation)
+	file, err := os.Create(l.fileLocation)
 	if err != nil {
 		fmt.Println("could not open " + l.fileLocation)
 
 	}
 	writer := bufio.NewWriter(file)
+	for i := 0; i < len(l.exp.Header); i++ {
+		writer.WriteString(l.exp.Header[i])
+	}
+
 	for i := 0; i < len(l.exp.Segments); i++ {
 		for x := 0; x < len(l.exp.Segments[i].lines); x++ {
 			writer.WriteString(l.exp.Segments[i].lines[x])
@@ -112,20 +136,28 @@ func (l listener) rebuild() {
 }
 
 // listen for segments and place them in order
-func (l listener) listen(doneChan chan bool, segChan chan segment) {
+func (l listener) listen(length int, segChan chan segment, doneChan chan bool) {
 	done := false
+	i := 0
 	for !done {
 		select {
 		case hold := <-segChan:
 			l.exp.Segments[hold.index] = hold
-		case done = <-doneChan:
-			close(doneChan)
-			close(segChan)
-			l.rebuild()
+			i++
+			if i >= length {
+				done = true
+				l.rebuild()
+				doneChan <- true
+			}
 		}
 	}
 }
 
+func work(s segment) {
+	s.data, s.tags = s.parse()
+	s.sanatize()
+	s.returnChan <- s
+}
 func main() {
 	flag.Parse()
 	runtime.GOMAXPROCS(*numWorkers)
@@ -139,23 +171,28 @@ func main() {
 	scanner := bufio.NewReader(file)
 	exp := new(experiment)
 	list := new(listener)
+	doneChan := make(chan bool)
 	list.exp = exp
 	list.fileLocation = fileLocation
 	exp.Header, _ = chomp(scanner, "Reflections measured after indexing")
-
+	segChan := make(chan segment)
 	// collect lines from file and turn them into segments
 	done := false
 	i := 0
-	var seg segment
+
 	for !done {
+		seg := *new(segment)
 		seg.lines, done = chomp(scanner, "Reflections measured after indexing")
 		seg.index = i
-		seg.data = parse(seg)
-		fmt.Println(seg.data)
-		fmt.Println(seg.stdDev())
+		seg.returnChan = segChan
 		exp.Segments = append(exp.Segments, seg)
 		i++
 
 	}
 
+	go list.listen(i, segChan, doneChan)
+	for i := 0; i < len(list.exp.Segments); i++ {
+		go work(list.exp.Segments[i])
+	}
+	<-doneChan
 }
