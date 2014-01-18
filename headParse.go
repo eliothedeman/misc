@@ -20,12 +20,21 @@ var f = flag.String("f", "rharr-c453.head", "the path to the file to be parsed")
 
 type segment struct {
 	index int
-	Header,
-	Footer,
 	lines []string
+	flags,
+	tags []int
+	data [][]float64
 	I,
 	sigmaI,
-	iOverSigmaI float32
+	iOverSigmaI float64
+}
+
+func (s segment) stdDev() float64 {
+	total := 0.0
+	for i := 0; i < len(s.data); i++ {
+		total += s.data[i][3]
+	}
+	return total / float64(len(s.data))
 }
 
 // take in a scanner, and return a segment of the text file you are looking for
@@ -49,17 +58,31 @@ func chomp(scanner *bufio.Reader, lookFor string) ([]string, bool) {
 
 	return lines, false
 }
-func parse(line string) map[string]interface{} {
-	b := strings.Split(line, " ")
-	hold := make(map[string]interface{})
 
-	hold["h"], _ = strconv.Atoi(b[0])
-	hold["k"], _ = strconv.Atoi(b[1])
-	hold["l"], _ = strconv.Atoi(b[2])
-	hold["I"], _ = strconv.ParseFloat(b[3], 32)
-	hold["sigmaI"], _ = strconv.ParseFloat(b[5], 32)
+// parse out
+func parse(seg segment) [][]float64 {
+	seg.data = make([][]float64, len(seg.lines))
+	xBound := len(seg.lines)
+	var tags []int
+	for x := 0; x < xBound; x++ {
 
-	return hold
+		line := seg.lines[x]
+		if strings.Contains(line, " - ") {
+			tags = append(tags, x)
+			seg.data[x] = make([]float64, 5)
+			b := strings.Split(line, " ")
+			for y := 0; y < 5; y++ {
+
+				hold, err := strconv.ParseFloat(b[y], 64)
+				seg.data[x][y] = hold
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+
+	}
+	return seg.data
 }
 
 // type listener creates an experiment, and reconsititues the santatized data
@@ -115,6 +138,24 @@ func main() {
 	}
 	scanner := bufio.NewReader(file)
 	exp := new(experiment)
+	list := new(listener)
+	list.exp = exp
+	list.fileLocation = fileLocation
 	exp.Header, _ = chomp(scanner, "Reflections measured after indexing")
-	fmt.Println(exp.Header)
+
+	// collect lines from file and turn them into segments
+	done := false
+	i := 0
+	var seg segment
+	for !done {
+		seg.lines, done = chomp(scanner, "Reflections measured after indexing")
+		seg.index = i
+		seg.data = parse(seg)
+		fmt.Println(seg.data)
+		fmt.Println(seg.stdDev())
+		exp.Segments = append(exp.Segments, seg)
+		i++
+
+	}
+
 }
