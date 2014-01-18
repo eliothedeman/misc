@@ -11,8 +11,7 @@ import (
 )
 
 type experiment struct {
-	Head,
-	Foot segment
+	Header   []string
 	Segments []segment
 }
 
@@ -21,6 +20,8 @@ var f = flag.String("f", "rharr-c453.head", "the path to the file to be parsed")
 
 type segment struct {
 	index int
+	Header,
+	Footer,
 	lines []string
 	I,
 	sigmaI,
@@ -28,7 +29,7 @@ type segment struct {
 }
 
 // take in a scanner, and return a segment of the text file you are looking for
-func chomp(scanner *bufio.Reader, seg *segment, lookFor string) (*segment, bool) {
+func chomp(scanner *bufio.Reader, lookFor string) ([]string, bool) {
 	found := false
 	var lines []string
 	for !found {
@@ -41,12 +42,12 @@ func chomp(scanner *bufio.Reader, seg *segment, lookFor string) (*segment, bool)
 		}
 		lines = append(lines, line)
 		if line == "" {
-			seg.lines = lines
-			return seg, true
+
+			return lines, true
 		}
 	}
-	seg.lines = lines
-	return seg, false
+
+	return lines, false
 }
 func parse(line string) map[string]interface{} {
 	b := strings.Split(line, " ")
@@ -61,6 +62,47 @@ func parse(line string) map[string]interface{} {
 	return hold
 }
 
+// type listener creates an experiment, and reconsititues the santatized data
+type listener struct {
+	exp          *experiment
+	fileLocation string
+}
+
+func (l listener) rebuild() {
+	err := os.Rename(l.fileLocation, l.fileLocation+".old")
+	if err != nil {
+		fmt.Println("could not rename file")
+	}
+	file, err := os.Open(l.fileLocation)
+	if err != nil {
+		fmt.Println("could not open " + l.fileLocation)
+
+	}
+	writer := bufio.NewWriter(file)
+	for i := 0; i < len(l.exp.Segments); i++ {
+		for x := 0; x < len(l.exp.Segments[i].lines); x++ {
+			writer.WriteString(l.exp.Segments[i].lines[x])
+		}
+
+	}
+	file.Close()
+}
+
+// listen for segments and place them in order
+func (l listener) listen(doneChan chan bool, segChan chan segment) {
+	done := false
+	for !done {
+		select {
+		case hold := <-segChan:
+			l.exp.Segments[hold.index] = hold
+		case done = <-doneChan:
+			close(doneChan)
+			close(segChan)
+			l.rebuild()
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
 	runtime.GOMAXPROCS(*numWorkers)
@@ -72,22 +114,7 @@ func main() {
 		fmt.Println("File ", fileLocation, " does not exist.")
 	}
 	scanner := bufio.NewReader(file)
-	var seg segment
-	seg.index = 0
-	i := 0
-	done := false
-	for !done {
-		seg := new(segment)
-		seg.index = i
-		seg, done = chomp(scanner, seg, "Reflections measured after indexing")
-		fmt.Println(seg.index)
-		i++
-		if seg.index > 1 {
-			for x := 0; x < len(seg.lines); x++ {
-				fmt.Println(parse(seg.lines[x])["sigmaI"])
-			}
-		}
-
-	}
-
+	exp := new(experiment)
+	exp.Header, _ = chomp(scanner, "Reflections measured after indexing")
+	fmt.Println(exp.Header)
 }
