@@ -75,7 +75,7 @@ func (s segment) sanatize() {
 		}
 	}
 	for i := 0; i < len(s.flags); i++ {
-		s.lines = append(s.lines[:s.tags[s.flags[i]]-offset], s.lines[s.tags[s.flags[i]]-offset+1:]...)
+		s.lines = append(s.lines[:s.tags[s.flags[i]]-offset], s.lines[s.tags[s.flags[i]]-(offset+1):]...)
 		offset++
 	}
 }
