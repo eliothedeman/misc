@@ -75,7 +75,6 @@ func (s segment) sanatize() {
 		}
 	}
 	for i := 0; i < len(s.flags); i++ {
-		fmt.Println(offset)
 		s.lines = append(s.lines[:s.tags[s.flags[i]]-offset], s.lines[s.tags[s.flags[i]]-offset+1:]...)
 		offset++
 	}
@@ -156,6 +155,7 @@ func (l listener) listen(length int, segChan chan segment, doneChan chan bool) {
 func work(s segment) {
 	s.data, s.tags = s.parse()
 	s.sanatize()
+	fmt.Println("Segment no: " + s.index + " is done")
 	s.returnChan <- s
 }
 func main() {
