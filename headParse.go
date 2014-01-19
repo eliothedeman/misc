@@ -67,7 +67,7 @@ func chomp(scanner *bufio.Reader, lookFor string) ([]string, bool) {
 func (s segment) sanatize() {
 	stdDev, avg := s.stdDev()
 	x := 0
-	offset := 1
+	offset := 0
 	for i := 0; i < len(s.data); i++ {
 		if (s.data[i] - avg) > 3*stdDev {
 			s.flags = append(s.flags, i)
@@ -155,7 +155,7 @@ func (l listener) listen(length int, segChan chan segment, doneChan chan bool) {
 func work(s segment) {
 	s.data, s.tags = s.parse()
 	s.sanatize()
-	fmt.Println("Segment no: " + s.index + " is done")
+	fmt.Printf("Segment: %d is done processing.\n", s.index)
 	s.returnChan <- s
 }
 func main() {
