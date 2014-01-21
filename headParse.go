@@ -86,7 +86,7 @@ func (seg segment) parse() ([]float64, []int) {
 	xBound := len(seg.lines)
 	var tags []int
 	for x := 0; x < xBound; x++ {
-		r := regexp.MustCompile(`\W*\d+\W*\d*\s+\W*\d+\W*\d*\s+\W*\d+\W*\d*\s+(\W*\d+\W*\d*)\s+\W\s+\d+\W*\d*\s+\d\s+\d+\W*\d*\s+\d+\W*\d*`)
+		r := regexp.MustCompile(`(-\d+\.\d{2}|\d+\.\d{2})\s+\-`)
 		line := seg.lines[x]
 		if r.MatchString(line) {
 			tags = append(tags, x)
