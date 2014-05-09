@@ -1,0 +1,14 @@
+{
+	"color_scheme": "Packages/Color Scheme - Frontend Delight/FrontEndDelightColorScheme.tmTheme",
+	"draw_minimap_border": true,
+	"font_face": "consolas",
+	"font_size": 11,
+	"auto_complete_commit_on_tab":true,
+	    "binary_file_patterns": ["*.jpg", "*.jpeg", "*.png", "*.gif", "*.ttf", "*.tga", "*.dds", "*.ico", "*.eot", "*.pdf", "*.swf", "*.jar", "*.zip","*.log"],
+
+	"ignored_packages":
+	[
+		"Vintage"
+	],
+	"word_wrap": true
+}
