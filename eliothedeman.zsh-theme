@@ -1,5 +1,5 @@
 function user_host() {
-    echo "%{$fg_bold[grey]%}%n@%m"
+    echo "%{$fg_bold[red]%}%n%{$fg[black]%}@%{$fg_bold[red]%}%m"
 }
 local ret_status="%(?:%{$fg_bold[green]%}➜ :%{$fg_bold[red]%}➜ %s)"
 PROMPT='$(user_host) ${ret_status}%{$fg_bold[green]%}%p %{$fg[cyan]%}%c %{$fg_bold[blue]%}$(git_prompt_info)%{$fg_bold[blue]%} % %{$reset_color%}'
